@@ -8,7 +8,7 @@ This is a very simple marketplace dapp where users can:
 * Add your own products to the dapp
 
 ## Live Demo
-[Marketplace Dapp](https://segzyi.github.io/celo101/)
+[Book A Doctor Dapp](https://segzyi.github.io/celo101/)
 
 ## Usage
 
