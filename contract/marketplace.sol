@@ -18,70 +18,72 @@ contract Marketplace {
 
     uint internal bookDoctorLength = 0; //initialize length to zero
     address internal cUsdTokenAddress = 0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1;
+    event CreateDoctor(uint256, string);
+    event LikeDoctor(uint256);
+    event UnLikeDoctor(uint256);
+    event PayDoctor(uint256, uint256);
 
-// struct to get doctor's data
+    // struct to get doctor's data
     struct BookDoctor {
         address payable owner;
         string name;
         string image;
         string description;
-        // string location;
         uint price;
         uint appointments;
-        address[] likes;
+        uint likesCount;
     }
 
-// map struct
+    // map struct
     mapping (uint => BookDoctor) internal bookDoctor;
+    mapping(uint => mapping(address => bool)) internal likes;
 
 
-// create or register a doctor
+
+    // create or register a doctor
     function writeBookDoctor(
         string memory _name,
         string memory _image,
         string memory _description, 
-        // string memory _location, 
         uint _price
     ) public {
-        uint _appointments = 0;
-        address[] memory _likes;
+        uint _appointments = 0;        
         bookDoctor[bookDoctorLength] = BookDoctor(
             payable(msg.sender),
             _name,
             _image,
             _description,
-            // _location,
             _price,
             _appointments,
-            _likes
+            0
         );
+        
+        emit CreateDoctor(bookDoctorLength, _name);
         bookDoctorLength++; //increment length after each registration
     }
 
-// read doctors that are available
+    // read doctors that are available
     function readBookDoctor(uint _index) public view returns (
         address payable,
         string memory, 
         string memory, 
         string memory, 
-        // string memory, 
         uint, 
         uint,
-        address[] memory likes
+        uint
     ) {
         return (
             bookDoctor[_index].owner,
             bookDoctor[_index].name, 
             bookDoctor[_index].image, 
             bookDoctor[_index].description, 
-            // bookDoctor[_index].location, 
             bookDoctor[_index].price,
             bookDoctor[_index].appointments,
-            bookDoctor[_index].likes
+            bookDoctor[_index].likesCount
         );
     }
 
-// book an appointment with doctor
+    // book an appointment with doctor
     function payDoctor(uint _index) public payable  {
         require(
           IERC20Token(cUsdTokenAddress).transferFrom(
@@ -91,6 +93,8 @@ contract Marketplace {
           ),
           "Transfer failed."
         );
+
+        emit PayDoctor(_index, bookDoctor[_index].price);
         bookDoctor[_index].appointments++;
     }
     
@@ -101,20 +105,18 @@ contract Marketplace {
     }
 
     // like a particular doctor
-    function likeDoctor(uint _postLiked) public {
-        bookDoctor[_postLiked].likes.push(payable(msg.sender));
+    function likeDoctor(uint _index) public {
+        require(!likes[_index][msg.sender], "You have already liked this doctor");
+        likes[_index][msg.sender] = true;
+        bookDoctor[_index].likesCount++;
+        emit LikeDoctor(_index);
     }
 
-// unlike a particular doctor
-    function unlikeDoctor(uint _postUnliked) public {
-        address[] storage likesDoctorArr = bookDoctor[_postUnliked].likes;
-        for (uint256 i = 0; i < likesDoctorArr.length; i++) {
-            if (likesDoctorArr[i] == payable(msg.sender)) {
-                // replace the element to delete with the last element in array
-                likesDoctorArr[i] = likesDoctorArr[likesDoctorArr.length - 1];
-                likesDoctorArr.pop(); // remove the last element
-                break;
-            }
-        }
+    // unlike a particular doctor
+    function unlikeDoctor(uint _index) public {
+        require(likes[_index][msg.sender], "You first have to like this doctor");
+        likes[_index][msg.sender] = false;
+        bookDoctor[_index].likesCount--;
+        emit UnLikeDoctor(_index);
     }
 }
