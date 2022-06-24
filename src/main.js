@@ -7,8 +7,13 @@ import marketplaceAbi from '../contract/marketplace.abi.json'
 import erc20Abi from "../contract/erc20.abi.json"
 
 const ERC20_DECIMALS = 18
-const MPContractAddress = "0x2Fe3688166C463eBA2A94b2b5A83D12d898051C5"
+const MPContractAddress = "0xb90F28e695AA8477e1f70c87a34B6bE97DA52B08"
 const cUSDContractAddress = "0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1"
+const unfilledHeart = "https://img.icons8.com/office/344/like--v2.png 2x";
+const filledHeart = "https://img.icons8.com/color/344/like--v1.png 2x";
+
+// NOTE = if you are going to merge changes, 
+// please redeploy contract and replace MPContractAddrss 
 
 
 let kit
@@ -61,22 +66,22 @@ const getBalance = async function () {
 
 // gets registered doctor from our smart contract
 const getDoctors = async function() {
-  const _bookDoctorsLength = await contract.methods.getBookDoctorLength().call()
+  const _bookDoctorsLength = await contract.methods.getBookDoctorLength().call();
   const _bookDoctors = []
 
   for (let i = 0; i < _bookDoctorsLength; i++) {
     let _bookDoctor = new Promise(async (resolve, reject) => {
-      let p = await contract.methods.readBookDoctor(i).call()
+      let p = await contract.methods.readBookDoctor(i, kit.defaultAccount).call(); // object for bookDoctor and boolean value for liked is returned
       resolve({
         index: i,
-        owner: p[0],
-        name: p[1],
-        image: p[2],
-        description: p[3],
-        // location: p[4],
-        price: new BigNumber(p[4]),
-        appointments: p[5],
-        likes:p[6]
+        owner: p[0][0],
+        name: p[0][1],
+        image: p[0][2],
+        description: p[0][3],
+        price: new BigNumber(p[0][4]),
+        appointments: p[0][5],
+        likes:p[0][6],
+        liked: p[1]
       })
     })
     _bookDoctors.push(_bookDoctor)
@@ -100,9 +105,16 @@ function renderDoctors() {
 
 // Template card for registered doctors
 function doctorTemplate(_bookDoctor) {
+  const buyBtn = `<div class="d-grid gap-2">
+  <a class="btn btn-lg btn-outline-dark bookBtn fs-6 p-3" id=${
+    _bookDoctor.index
+  }>
+    Book Doctor for ${_bookDoctor.price.shiftedBy(-ERC20_DECIMALS).toFixed(2)} cUSD
+  </a>
+  </div>`;
   return `
     <div class="card mb-4">
-      <img class="card-img-top" src="${_bookDoctor.image}" alt="...">
+      <img class="card-img-top" src="${_bookDoctor.image}" alt="Dr. ${_bookDoctor.name}">
       <div class="position-absolute top-0 end-0 bg-warning mt-4 px-2 py-1 rounded-start">
         ${_bookDoctor.appointments} Appointments
       </div>
@@ -115,24 +127,20 @@ function doctorTemplate(_bookDoctor) {
           ${_bookDoctor.description}             
         </p>
         <p class="card-text mt-4">
-        <img class="likes" src="https://img.icons8.com/color/24/undefined/filled-like.png"
+        <img class="likes" src="${_bookDoctor.liked? filledHeart : unfilledHeart }"
         id=${ _bookDoctor.index
-        }
+        } alt="${_bookDoctor.liked? "unlike" : "like"} Dr. ${_bookDoctor.name}"
         />
-          <span>${_bookDoctor.likes.length}</span>
-          likes 
+          <span>${_bookDoctor.likes}</span>
+          ${_bookDoctor.likes > 1? "likes" : "like"}
         </p>
-        <div class="d-grid gap-2">
-          <a class="btn btn-lg btn-outline-dark bookBtn fs-6 p-3" id=${
-            _bookDoctor.index
-          }>
-            Book Doctor for ${_bookDoctor.price.shiftedBy(-ERC20_DECIMALS).toFixed(2)} cUSD
-          </a>
-        </div>
+        ${_bookDoctor.owner == kit.defaultAccount? "" : buyBtn}
       </div>
     </div>
   `
 }
+
+
 
 
 // icon gottrn from address
@@ -232,23 +240,21 @@ document.querySelector("#marketplace").addEventListener("click", async (e) => {
   
   if (e.target.className.includes("likes")) {
     const index = e.target.id
-    console.log(await kit.web3.eth.getAccounts(), bookDoctors[index].likes)
-const account = await kit.web3.eth.getAccounts();
+    const account = await kit.web3.eth.getAccounts();
 
     // check if account already likes then unlikes
-if( bookDoctors[index].likes.includes(account[0])) {
-  try {
-    const result = await contract.methods
-      .unlikeDoctor(index)
-      .send({ from: kit.defaultAccount })
-    notification(`🎉 You unliked Dr. ${bookDoctors[index].name}.`)
-    e.target.setAttribute('src','')
-    getDoctors()
-    getBalance()
-  } catch (error) {
-    notification(`⚠️ ${error}.`)
+  if(bookDoctors[index].liked) {
+    try {
+      const result = await contract.methods
+        .unlikeDoctor(index)
+        .send({ from: kit.defaultAccount })
+      notification(`🎉 You unliked Dr. ${bookDoctors[index].name}.`)
+      getDoctors()
+      getBalance()
+    } catch (error) {
+      notification(`⚠️ ${error}.`)
+    }
   }
-}
 // if account has not liked then like
   else{
     try {
@@ -264,5 +270,3 @@ if( bookDoctors[index].likes.includes(account[0])) {
  }
 }
 })
-
-// changes smart contract buybookDoctor
