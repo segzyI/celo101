@@ -25,64 +25,57 @@ contract Marketplace {
         string name;
         string image;
         string description;
-        // string location;
         uint price;
         uint appointments;
-        address[] likes;
+        uint likes; // counter for likes
     }
 
-// map struct
+    event LikeDoctor(uint index, address user, uint likes);
+    event DislikeDoctor(uint index, address user, uint likes);
+
+    mapping(uint => mapping(address => bool))liked; // keeps track of wallet likes per doctor
+
     mapping (uint => BookDoctor) internal bookDoctor;
 
+    modifier isValidIndex(uint _index){
+        require(_index < bookDoctorLength, "Enter a valid index");
+        _;
+    }
 
 // create or register a doctor
     function writeBookDoctor(
         string memory _name,
         string memory _image,
         string memory _description, 
-        // string memory _location, 
         uint _price
     ) public {
+        require(bytes(_name).length > 0, "Enter a valid name");
+        require(bytes(_image).length > 0, "Enter a valid image url");
+        require(bytes(_description).length > 0, "Enter a valid description");
+        require(_price > 0, "Enter a valid price");
         uint _appointments = 0;
-        address[] memory _likes;
         bookDoctor[bookDoctorLength] = BookDoctor(
             payable(msg.sender),
             _name,
             _image,
             _description,
-            // _location,
             _price,
             _appointments,
-            _likes
+            0
         );
         bookDoctorLength++; //increment length after each registration
     }
 
 // read doctors that are available
-    function readBookDoctor(uint _index) public view returns (
-        address payable,
-        string memory, 
-        string memory, 
-        string memory, 
-        // string memory, 
-        uint, 
-        uint,
-        address[] memory likes
-    ) {
-        return (
-            bookDoctor[_index].owner,
-            bookDoctor[_index].name, 
-            bookDoctor[_index].image, 
-            bookDoctor[_index].description, 
-            // bookDoctor[_index].location, 
-            bookDoctor[_index].price,
-            bookDoctor[_index].appointments,
-            bookDoctor[_index].likes
-        );
+    function readBookDoctor(uint _index, address user) public view isValidIndex(_index) returns (BookDoctor memory, bool) {
+        BookDoctor memory currentDoctor = bookDoctor[_index];
+        require(user != address(0), "Invalid address");
+        return (currentDoctor, liked[_index][user]);
     }
 
 // book an appointment with doctor
-    function payDoctor(uint _index) public payable  {
+    function payDoctor(uint _index) public payable isValidIndex(_index)  {
+        require(msg.sender != bookDoctor[_index].owner, "You can't book yourself");
         require(
           IERC20Token(cUsdTokenAddress).transferFrom(
             msg.sender,
@@ -101,20 +94,18 @@ contract Marketplace {
     }
 
     // like a particular doctor
-    function likeDoctor(uint _postLiked) public {
-        bookDoctor[_postLiked].likes.push(payable(msg.sender));
+    function likeDoctor(uint _index) public isValidIndex(_index) {
+        require(!liked[_index][msg.sender], "You have already liked this doctor");
+        bookDoctor[_index].likes++;
+        liked[_index][msg.sender] = true;
+        emit LikeDoctor(_index, msg.sender,bookDoctor[_index].likes);
     }
 
 // unlike a particular doctor
-    function unlikeDoctor(uint _postUnliked) public {
-        address[] storage likesDoctorArr = bookDoctor[_postUnliked].likes;
-        for (uint256 i = 0; i < likesDoctorArr.length; i++) {
-            if (likesDoctorArr[i] == payable(msg.sender)) {
-                // replace the element to delete with the last element in array
-                likesDoctorArr[i] = likesDoctorArr[likesDoctorArr.length - 1];
-                likesDoctorArr.pop(); // remove the last element
-                break;
-            }
-        }
+    function unlikeDoctor(uint _index) public isValidIndex(_index) {
+        require(liked[_index][msg.sender], "You haven't liked this doctor yet");
+        bookDoctor[_index].likes--;
+        liked[_index][msg.sender] = false;
+        emit DislikeDoctor(_index, msg.sender,bookDoctor[_index].likes);
     }
 }
